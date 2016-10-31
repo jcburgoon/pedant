@@ -30,22 +30,46 @@ module Pedant
   class CheckArityOfBuiltins < Check
     @@anon_arity_of_one = Set.new [
       "isnull",
+      # Sockets
+      "get_port_state",
+      "get_tcp_port_state",
+      "get_udp_port_state",
+      "close",
+      # String functions
+      "strlen",
+      "int",
+      "uint",
+      "chomp",
+      "ord",
+      "hex",
+      "hexstr",
+      "tolower",
+      "toupper",
+      "xmlparse",
+      # Time
       "usleep",
       "sleep",
+      # Arrays and lists
       "keys",
       "max_index",
+      "sort",
+      # Runtime checks
       "typeof",
+      "typeof_ex",
       "defined_func",
+      # Bignum functions
       "bn_dec2raw",
       "bn_raw2dec",
       "bn_hex2raw",
       "bn_raw2hex",
       "bn_sqr",
+      # File system
       "fread",
       "unlink",
       "readdir",
       "mkdir",
       "rmdir",
+      # Unkeyed hashes (crypto)
       "SHA",
       "SHA1",
       "SHA224",
@@ -56,6 +80,7 @@ module Pedant
       "MD2",
       "MD4",
       "MD5",
+      # Knowledge base
       "get_kb_item",
       "get_kb_list",
       "get_global_kb_item",
@@ -68,20 +93,28 @@ module Pedant
 
     def check(file, tree)
       tree.all(:Call).each do |call|
-        next unless @@anon_arity_of_one.include? call.name.ident.name
         next unless call.name.indexes == []
-        next unless call.args.length != 1 or call.args.first.type != :anonymous
+        name = call.name.ident.name
 
-        fail
-        report(:error, "The builtin function '#{call.name.ident.name}' takes a single anonymous argument.")
+        if @@anon_arity_of_one.include? name
+          next if call.args.length == 1 and call.args.first.type == :anonymous
+          fail
+          report(:error, "The builtin function '#{name}' takes a single anonymous argument.")
+          # Pick the right thing to highlight.
+          if call.args.length == 0
+            report(:error, call.context(call))
+          elsif call.args.first.type != :anonymous
+            report(:error, call.args[0].context(call))
+          elsif call.args.length > 1
+            report(:error, call.args[1].context(call))
+          end
+        end
 
-        # Pick the right thing to highlight.
-        if call.args.length == 0
+        if name == "make_array"
+          next if call.args.length.even?
+          fail
+          report(:error, "The builtin function 'make_array()' takes an even number of arguments.")
           report(:error, call.context(call))
-        elsif call.args.first.type != :anonymous
-          report(:error, call.args[0].context(call))
-        elsif call.args.length > 1
-          report(:error, call.args[1].context(call))
         end
       end
     end
